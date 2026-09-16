@@ -14,16 +14,10 @@
   <aside class="sidebar">
     <div class="logo">🗓 日程管理</div>
     <nav>
-      <button class="nav-btn active" data-page="main" type="button">📋 今日待办</button>
-      <button class="nav-btn" data-page="goal" type="button">🎯 目标管理</button>
+      <button class="nav-btn active" data-page="main" type="button"><span class="nav-ico">📋</span><span class="nav-text">待办</span></button>
+      <button class="nav-btn" data-page="goal" type="button"><span class="nav-ico">🎯</span><span class="nav-text">目标</span></button>
+      <button class="nav-btn" data-page="settings" type="button"><span class="nav-ico">⚙️</span><span class="nav-text">设置</span></button>
     </nav>
-    <button id="notifyBtn" class="btn ghost small" type="button">🔔 开启提醒</button>
-    <button id="aiSettingsBtn" class="btn ghost small" type="button">⚙️ AI 设置</button>
-    <div class="sidebar-data">
-      <button id="exportData" class="btn ghost small" type="button">⬇️ 备份数据</button>
-      <button id="importData" class="btn ghost small" type="button">⬆️ 恢复备份</button>
-      <input id="importFile" type="file" accept="application/json,.json" hidden>
-    </div>
     <div class="sidebar-tip">数据保存在浏览器本地<br>（localStorage），关闭页面不丢失</div>
   </aside>
 
@@ -82,6 +76,42 @@
       </form>
 
       <div id="goalGroups"></div>
+    </section>
+
+    <!-- 子页面：设置 -->
+    <section id="page-settings" class="page hidden">
+      <header class="page-header">
+        <div>
+          <h1>设置</h1>
+          <div class="date-line">配置 AI 拆解、数据备份与通知提醒</div>
+        </div>
+      </header>
+
+      <div class="settings-card">
+        <div class="settings-card-title">🤖 AI 大模型设置</div>
+        <div class="settings-card-body">
+          <button id="aiSettingsBtn" class="btn ghost small" type="button">⚙️ 打开 AI 设置</button>
+          <div class="settings-hint">由大模型为目标生成「需要的行动 / 阶段小目标 / 注意事项」。API Key 仅保存在本机浏览器，只发往所选厂商的官方接口。</div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-card-title">💾 数据管理</div>
+        <div class="settings-card-body">
+          <button id="exportData" class="btn ghost small" type="button">⬇️ 备份数据</button>
+          <button id="importData" class="btn ghost small" type="button">⬆️ 恢复备份</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden>
+          <div class="settings-hint">备份为 JSON 文件，可分享或保存到云盘；恢复会覆盖当前数据。</div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-card-title">🔔 通知提醒</div>
+        <div class="settings-card-body">
+          <button id="notifyBtn" class="btn ghost small" type="button">🔔 开启提醒</button>
+          <div class="settings-hint">到点自动弹出系统通知（App 关闭也能提醒）。</div>
+        </div>
+      </div>
     </section>
 
   </main>

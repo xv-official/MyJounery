@@ -17,9 +17,10 @@
   --shadow: 0 8px 24px rgba(20, 30, 70, .10);
 }
 
-/* 页面主题变量：主页面克莱因蓝 / 子页面深黑 */
+/* 页面主题变量：主页面克莱因蓝 / 子页面深黑 / 设置页深紫黑 */
 body.page-main { --accent: #002fa7; --accent-strong: #01236f; --accent-soft: #e9efff; }
 body.page-goal { --accent: #15161c; --accent-strong: #000000; --accent-soft: #eceef3; }
+body.page-settings { --accent: #1a1a2e; --accent-strong: #000000; --accent-soft: #eeeef5; }
 
 html, body { height: 100%; }
 body {
@@ -51,7 +52,7 @@ nav { display: flex; flex-direction: column; gap: 6px; }
 }
 .nav-btn:hover { background: var(--accent-soft); }
 .nav-btn.active { background: var(--accent); color: #fff; box-shadow: 0 6px 14px rgba(0, 47, 167, .25); }
-#notifyBtn { width: 100%; margin-top: 8px; text-align: center; }
+#notifyBtn { text-align: center; }
 .sidebar-tip { margin-top: auto; font-size: 12px; color: var(--muted); line-height: 1.7; padding: 8px; }
 
 /* ---------------- 内容区 ---------------- */
@@ -236,6 +237,27 @@ input:focus, select:focus { border-color: var(--accent); }
 .subtask-form { display: flex; gap: 8px; flex-wrap: wrap; }
 .subtask-form input[type="text"] { flex: 1; min-width: 160px; }
 
+/* ---------------- 设置页卡片 ---------------- */
+.settings-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(20, 30, 70, .05);
+  overflow: hidden;
+}
+.settings-card-title {
+  font-size: 15px; font-weight: 800; color: var(--accent);
+  padding: 14px 16px; background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+}
+.settings-card-body {
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+  align-items: stretch;
+}
+.settings-card-body .btn { width: 100%; margin: 0; }
+.settings-hint {
+  font-size: 12.5px; color: var(--muted); line-height: 1.7;
+}
+
 /* ---------------- 笔记弹层（条目右侧弹出） ---------------- */
 .note-popup {
   position: fixed; z-index: 1000; width: 330px;
@@ -280,29 +302,88 @@ input:focus, select:focus { border-color: var(--accent); }
 .hidden { display: none !important; }
 
 /* ---------------- 移动端适配（App / 手机浏览器） ---------------- */
+/* 侧边栏变为固定底部导航条，仅保留 3 个主入口；其余按钮移至设置页 */
 @media (max-width: 760px) {
+  body { overflow-x: hidden; }
   .app { flex-direction: column; }
+
+  /* 桌面侧边栏：除 nav 外全部隐藏；nav 提升为固定底部条 */
   .sidebar {
-    width: 100%; height: auto; position: static;
-    flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
-    border-right: none; border-bottom: 1px solid var(--line);
+    width: 100%; height: 0; padding: 0; border: none;
+    background: transparent; position: static; overflow: visible;
+    display: block;
   }
-  .logo { flex: 1 1 auto; padding: 0; white-space: nowrap; }
-  nav { order: 5; flex: 1 1 100%; flex-direction: row; overflow-x: auto; gap: 8px; }
-  .nav-btn { white-space: nowrap; }
-  #notifyBtn { order: 2; width: auto; margin-top: 0; flex: 1 1 42%; }
-  #aiSettingsBtn { order: 3; flex: 1 1 42%; }
-  .sidebar-data { order: 4; flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; padding-top: 8px; }
-  .sidebar-data .btn { flex: 1 1 42%; }
-  .sidebar-tip { display: none; }
-  .content { padding: 16px 14px calc(20px + env(safe-area-inset-bottom)); }
+  .sidebar .logo,
+  .sidebar .sidebar-tip { display: none; }
+
+  /* 底部固定导航条 */
+  .sidebar nav {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
+    flex-direction: row; gap: 0;
+    background: #fff; border-top: 1px solid var(--line);
+    padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+    z-index: 100;
+    box-shadow: 0 -4px 12px rgba(20, 30, 70, .06);
+  }
+  .nav-btn {
+    flex: 1 1 0; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px; padding: 8px 4px;
+    border-radius: 10px; font-size: 11.5px; font-weight: 700;
+    text-align: center; white-space: nowrap;
+    box-shadow: none;
+  }
+  .nav-btn .nav-ico { font-size: 19px; line-height: 1; }
+  .nav-btn .nav-text { font-size: 11.5px; }
+  .nav-btn.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+
+  /* 内容区底部留出底部条高度，避免被遮挡 */
+  .content { padding: 16px 14px calc(64px + env(safe-area-inset-bottom)); }
   h1 { font-size: 22px; }
-  .add-form { padding: 10px; gap: 8px; }
-  .add-form input[type="text"] { min-width: 140px; }
+
+  /* 添加表单：移动端竖向堆叠 */
+  .add-form { padding: 10px; gap: 8px; flex-direction: column; }
+  .add-form > * { flex: 1 1 100%; min-width: 0; width: 100%; }
+  .subtask-form { flex-direction: column; }
+  .subtask-form > * { flex: 1 1 100%; }
+
+  /* 横向目标树：触摸横向滚动（已设置 -webkit-overflow-scrolling: touch） */
   .gtree-root { width: 142px; padding: 8px 10px; }
   .gtree-node { max-width: 150px; padding: 8px 10px; }
-  .item { gap: 8px; }
+
+  /* 条目卡片：移动端间距收紧 */
+  .item { gap: 8px; padding: 10px 10px; }
+
+  /* 目标卡片：双行布局，操作按钮单独一行 */
+  .goal-head { flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+  .goal-info { flex: 1 1 100%; min-width: 0; }
+  .goal-progress-mini { flex: 1 1 100%; width: auto; }
+  .goal-head .ops {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+  .goal-head .ops .op { width: 36px; height: 36px; border-radius: 10px; }
+  .goal-head .ops .op.note { width: 36px; height: 36px; }
+  .goal-head .ops .ai-btn {
+    flex: 1 1 100%; text-align: center;
+    padding: 9px 12px; font-size: 13px; border-radius: 8px;
+  }
+
+  /* 目标卡片展开区：移动端间距 */
+  .goal-body { padding: 8px 14px 14px; }
+  .ai-block { padding: 10px; margin-top: 10px; }
+
+  /* 设置页卡片：移动端紧凑 */
+  .settings-card { margin-bottom: 10px; }
+  .settings-card-title { padding: 12px 14px; }
+  .settings-card-body { padding: 12px 14px; gap: 8px; }
+
+  /* AI 模态框：移动端更宽 */
+  .modal { width: 100%; max-width: 96vw; }
 }
 
 /* 触屏设备：增大触控热区 */

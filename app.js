@@ -1070,12 +1070,13 @@ async function aiGenerate(goal, btn) {
    页面切换 / 表单事件
    ========================================================== */
 function switchPage(p) {
-  document.body.classList.remove('page-main', 'page-goal');
+  document.body.classList.remove('page-main', 'page-goal', 'page-settings');
   document.body.classList.add('page-' + p);
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === p));
   $('#page-main').classList.toggle('hidden', p !== 'main');
   $('#page-goal').classList.toggle('hidden', p !== 'goal');
-  if (p === 'main') renderMain(); else renderGoals();
+  $('#page-settings').classList.toggle('hidden', p !== 'settings');
+  if (p === 'main') renderMain(); else if (p === 'goal') renderGoals();
 }
 
 function renderAll() {
