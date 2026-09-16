@@ -74,12 +74,12 @@ const icons = {
 
 /* ---------------- 轻提示 ---------------- */
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, duration) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2200);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), duration || 2200);
 }
 
 /* ---------------- 复制（功能4） ---------------- */
@@ -1264,9 +1264,48 @@ async function requestNativeNotifyPermission() {
   const P = notifPlugin();
   if (!P) return false;
   try {
+    // 创建通知渠道（Android 8+ 必须，否则通知不显示）
+    try {
+      await P.createChannel({
+        id: 'schedule-notify',
+        name: '待办提醒',
+        description: '到点提醒今日待办和目标子任务',
+        importance: 5,          // IMPORTANCE_HIGH：弹出+声音+震动
+        visibility: 1,          // PUBLIC
+        vibration: true,
+        lights: true,
+        sound: 'default_ringtone'
+      });
+    } catch (e) { /* 渠道已存在或创建失败，忽略 */ }
+
     const r = await P.requestPermissions();
+    if (r.display === 'granted') {
+      // 引导用户关闭电池优化（国产 ROM 默认杀后台，不关则 App 关闭后通知可能被拦截）
+      guideBatteryOptimization();
+    }
     return r.display === 'granted';
   } catch (e) { return false; }
+}
+
+/* 引导用户关闭电池优化（国产手机必须手动加白名单，否则关闭 App 后通知不弹） */
+function guideBatteryOptimization() {
+  // 检测手机品牌，给出对应的设置路径
+  const ua = (navigator.userAgent || '').toLowerCase();
+  let brand = '';
+  if (ua.includes('mi') || ua.includes('redmi')) brand = '小米/红米';
+  else if (ua.includes('huawei') || ua.includes('honor')) brand = '华为/荣耀';
+  else if (ua.includes('oppo') || ua.includes('oneplus')) brand = 'OPPO/一加';
+  else if (ua.includes('vivo')) brand = 'vivo';
+  else if (ua.includes('samsung')) brand = '三星';
+  else brand = '你的手机';
+
+  const tips = brand ? `\n\n【${brand} 用户注意】\n请到系统设置 → 电池 → 找到"日程管理" → 允许后台运行/自启动` : '';
+
+  // 用 toast 提示，不阻断流程
+  setTimeout(() => {
+    toast('✅ 通知权限已开启' + (tips ? '，建议同时关闭电池优化' : ''), 5000);
+    if (tips) setTimeout(() => toast(tips, 6000), 2500);
+  }, 500);
 }
 
 /* 全量重排：取消所有挂起通知 → 按当前数据重新注册未来时刻的未完成项 */
@@ -1299,6 +1338,7 @@ async function syncNativeNotifications() {
         id: hashNotifId((from ? 's' : 't') + item.id),
         title: '⏰ 待办提醒',
         body: ((from ? '【' + from + '】 ' : '') + item.time + ' ' + item.text).slice(0, 150),
+        channelId: 'schedule-notify',
         schedule: { at: new Date(ts) }
       });
     };
@@ -1311,6 +1351,24 @@ async function syncNativeNotifications() {
 
 async function initNative() {
   if (!isNative()) return;
+
+  // 启动时创建通知渠道（Android 8+ 没有渠道通知不显示）
+  try {
+    const P = notifPlugin();
+    if (P && P.createChannel) {
+      await P.createChannel({
+        id: 'schedule-notify',
+        name: '待办提醒',
+        description: '到点提醒今日待办和目标子任务',
+        importance: 5,
+        visibility: 1,
+        vibration: true,
+        lights: true,
+        sound: 'default_ringtone'
+      });
+    }
+  } catch (e) { /* 已存在则忽略 */ }
+
   // 回前台时校准一次（系统时间/数据可能已过期）
   document.addEventListener('resume', syncNativeNotifications);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNativeNotifications(); });
