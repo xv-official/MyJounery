@@ -1369,6 +1369,20 @@ async function initNative() {
     }
   } catch (e) { /* 已存在则忽略 */ }
 
+  // 首次打开自动请求通知权限（已授权则不再弹）
+  try {
+    const P = notifPlugin();
+    if (P) {
+      const perm = await P.checkPermissions();
+      if (perm.display === 'prompt') {
+        // 仅在系统尚未询问过时自动弹出（prompt = 未询问过）
+        const r = await P.requestPermissions();
+        if (r.display === 'granted') guideBatteryOptimization();
+      }
+      updateNotifyBtn();
+    }
+  } catch (e) { /* 权限检查失败忽略 */ }
+
   // 回前台时校准一次（系统时间/数据可能已过期）
   document.addEventListener('resume', syncNativeNotifications);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNativeNotifications(); });
