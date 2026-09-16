@@ -32,8 +32,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # 使用 runner 预装的 Android SDK（cmdline-tools/latest），
+      # 显式安装所需组件——不使用 setup-android action（它会安装已被
+      # Google 移除的旧版 "tools" 包，导致 sdkmanager 退出码 1）
+      - name: Install Android SDK components
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMGR="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Install dependencies
         run: npm ci
@@ -51,6 +59,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: 日程管理-debug-apk
+          name: schedule-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
