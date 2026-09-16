@@ -1,0 +1,8 @@
+{
+  "appId": "com.myschedule.app",
+  "appName": "日程管理",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

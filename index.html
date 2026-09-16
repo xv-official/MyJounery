@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>日程管理 · 今日待办与目标</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="page-main">
+<div class="app">
+
+  <!-- ============ 侧边导航 ============ -->
+  <aside class="sidebar">
+    <div class="logo">🗓 日程管理</div>
+    <nav>
+      <button class="nav-btn active" data-page="main" type="button">📋 今日待办</button>
+      <button class="nav-btn" data-page="goal" type="button">🎯 目标管理</button>
+    </nav>
+    <button id="notifyBtn" class="btn ghost small" type="button">🔔 开启提醒</button>
+    <button id="aiSettingsBtn" class="btn ghost small" type="button">⚙️ AI 设置</button>
+    <div class="sidebar-data">
+      <button id="exportData" class="btn ghost small" type="button">⬇️ 备份数据</button>
+      <button id="importData" class="btn ghost small" type="button">⬆️ 恢复备份</button>
+      <input id="importFile" type="file" accept="application/json,.json" hidden>
+    </div>
+    <div class="sidebar-tip">数据保存在浏览器本地<br>（localStorage），关闭页面不丢失</div>
+  </aside>
+
+  <!-- ============ 内容区 ============ -->
+  <main class="content">
+
+    <!-- 主页面：今日待办 -->
+    <section id="page-main" class="page">
+      <header class="page-header">
+        <div>
+          <h1>今日待办</h1>
+          <div class="date-line" id="todayDate"></div>
+        </div>
+      </header>
+
+      <form id="todoForm" class="add-form">
+        <input type="time" id="todoTime" title="时间（可选）">
+        <input type="text" id="todoText" placeholder="输入今日待办事项…" required>
+        <button class="btn primary" type="submit">＋ 添加待办</button>
+      </form>
+
+      <!-- 置顶：目标 → 小目标 横向树 -->
+      <div class="section-head">
+        <h2>🎯 目标与小目标</h2>
+        <span id="treeCount" class="count"></span>
+      </div>
+      <div id="goalTree" class="gtree"></div>
+
+      <!-- 主体：今日所有待办（手动待办 + 目标计划合并，按时间排序） -->
+      <div class="section-head">
+        <h2>今日所有待办</h2>
+        <span id="todoCount" class="count"></span>
+        <button id="clearDone" class="btn ghost small" type="button">清除已完成</button>
+      </div>
+      <ul id="todoList" class="item-list"></ul>
+    </section>
+
+    <!-- 子页面：目标管理 -->
+    <section id="page-goal" class="page hidden">
+      <header class="page-header">
+        <div>
+          <h1>目标管理</h1>
+          <div class="date-line">创建周目标 / 月目标 / 学期目标 / 年目标，拆分为子任务并跟踪进度</div>
+        </div>
+      </header>
+
+      <form id="goalForm" class="add-form">
+        <select id="goalType" title="目标类型">
+          <option>周目标</option>
+          <option>月目标</option>
+          <option>学期目标</option>
+          <option>年目标</option>
+        </select>
+        <input type="text" id="goalName" placeholder="输入目标名称…" required>
+        <button class="btn primary" type="submit">＋ 创建目标</button>
+      </form>
+
+      <div id="goalGroups"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ 笔记弹层（每条待办/子任务/目标右侧弹出） ============ -->
+<div id="notePopup" class="note-popup hidden">
+  <div class="note-head">
+    <span class="note-title" id="noteTitle">笔记</span>
+    <button id="noteTabEdit" class="tab active" type="button">编辑</button>
+    <button id="noteTabView" class="tab" type="button">预览</button>
+    <button id="noteClose" class="note-close" type="button" title="关闭">✕</button>
+  </div>
+  <div id="noteSave">已保存 ✓</div>
+  <textarea id="noteEdit" spellcheck="false" placeholder="在此输入 Markdown 或纯文本内容…&#10;支持 # 标题、**加粗**、- 列表、`代码` 等"></textarea>
+  <div id="noteView" class="md-view hidden"></div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- ============ AI 设置弹窗 ============ -->
+<div id="aiModal" class="modal-mask hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>⚙️ AI 拆解设置</h3>
+      <button id="aiModalClose" class="note-close" type="button">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-tip">由大模型为目标生成「需要的行动 / 阶段小目标 / 注意事项」。先选择厂商，再粘贴对应平台的 API Key。Key 仅保存在本机浏览器（localStorage），只发往所选厂商的官方接口，不经过任何第三方。</p>
+      <label for="aiProvider">大模型厂商</label>
+      <select id="aiProvider"></select>
+      <label for="aiKeyInput">API Key（<span id="aiKeyHint">sk-</span> 开头）</label>
+      <input id="aiKeyInput" type="password" placeholder="请粘贴该厂商的 API Key">
+      <div class="modal-row">
+        <a id="aiKeyLink" href="#" target="_blank" rel="noopener">前往平台注册 / 获取 Key →</a>
+      </div>
+      <div id="aiEndpointInfo" class="endpoint-info"></div>
+      <div id="aiKeyStatus" class="key-status"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="aiKeyClear" class="btn ghost small" type="button">清除</button>
+      <button id="aiKeySave" class="btn primary small" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
