@@ -10,3 +10,6 @@ android/captures/
 .idea/
 *.iml
 .DS_Store
+
+# IDE local
+.trae/

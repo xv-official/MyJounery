@@ -1,8 +1,0 @@
-{
-  "appId": "com.example.myapp",
-  "appName": "我的应用",
-  "webDir": "www",
-  "android": {
-    "allowMixedContent": false
-  }
-}
