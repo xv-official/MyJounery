@@ -16,6 +16,7 @@
     <nav>
       <button class="nav-btn active" data-page="main" type="button"><span class="nav-ico">📋</span><span class="nav-text">待办</span></button>
       <button class="nav-btn" data-page="goal" type="button"><span class="nav-ico">🎯</span><span class="nav-text">目标</span></button>
+      <button class="nav-btn" data-page="log" type="button"><span class="nav-ico">📝</span><span class="nav-text">日志</span></button>
       <button class="nav-btn" data-page="settings" type="button"><span class="nav-ico">⚙️</span><span class="nav-text">设置</span></button>
     </nav>
     <div class="sidebar-tip">数据保存在浏览器本地<br>（localStorage），关闭页面不丢失</div>
@@ -39,20 +40,20 @@
         <button class="btn primary" type="submit">＋ 添加待办</button>
       </form>
 
-      <!-- 置顶：目标 → 小目标 横向树 -->
-      <div class="section-head">
-        <h2>🎯 目标与小目标</h2>
-        <span id="treeCount" class="count"></span>
-      </div>
-      <div id="goalTree" class="gtree"></div>
-
-      <!-- 主体：今日所有待办（手动待办 + 目标计划合并，按时间排序） -->
+      <!-- 主体置顶：今日所有待办（手动待办 + 目标行动/计划合并，按时间排序） -->
       <div class="section-head">
         <h2>今日所有待办</h2>
         <span id="todoCount" class="count"></span>
         <button id="clearDone" class="btn ghost small" type="button">清除已完成</button>
       </div>
       <ul id="todoList" class="item-list"></ul>
+
+      <!-- 下放：目标 → 小目标 横向树 -->
+      <div class="section-head">
+        <h2>🎯 目标与小目标</h2>
+        <span id="treeCount" class="count"></span>
+      </div>
+      <div id="goalTree" class="gtree"></div>
     </section>
 
     <!-- 子页面：目标管理 -->
@@ -78,6 +79,50 @@
       <div id="goalGroups"></div>
     </section>
 
+    <!-- 子页面：每日日志与成长总结 -->
+    <section id="page-log" class="page hidden">
+      <header class="page-header">
+        <div>
+          <h1>每日日志</h1>
+          <div class="date-line">记录每天的学习与行动，系统按「周 → 月 → 年」三级总结，到此为止，回看自己的成长</div>
+        </div>
+      </header>
+
+      <div id="logStats" class="log-stats"></div>
+
+      <div class="log-bar card-like">
+        <button id="logPrev" class="btn ghost tiny" type="button">‹ 前一天</button>
+        <strong id="logDateLabel"></strong>
+        <button id="logToday" class="btn ghost tiny" type="button">回到今天</button>
+        <button id="logNext" class="btn ghost tiny" type="button">后一天 ›</button>
+      </div>
+      <textarea id="logEdit" spellcheck="false" placeholder="今天做了什么？学了什么、完成了什么？&#10;遇到什么问题、明天打算怎么改进？&#10;（自动保存）"></textarea>
+
+      <div class="summary-grid">
+        <div class="settings-card summary-card">
+          <div class="settings-card-title">📅 周总结 <span class="sub">总结最近 7 天日志</span></div>
+          <div class="settings-card-body">
+            <button id="genWeekly" class="btn primary tiny" type="button">✨ 生成 / 重写本周总结</button>
+            <div id="sumWeekly" class="sum-list"></div>
+          </div>
+        </div>
+        <div class="settings-card summary-card">
+          <div class="settings-card-title">🗓 月总结 <span class="sub">总结最近 4 篇周总结</span></div>
+          <div class="settings-card-body">
+            <button id="genMonthly" class="btn primary tiny" type="button">✨ 生成 / 重写本月总结</button>
+            <div id="sumMonthly" class="sum-list"></div>
+          </div>
+        </div>
+        <div class="settings-card summary-card">
+          <div class="settings-card-title">🎓 年总结 <span class="sub">总结最近 12 篇月总结</span></div>
+          <div class="settings-card-body">
+            <button id="genYearly" class="btn primary tiny" type="button">✨ 生成 / 重写本年总结</button>
+            <div id="sumYearly" class="sum-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 子页面：设置 -->
     <section id="page-settings" class="page hidden">
       <header class="page-header">
@@ -86,6 +131,22 @@
           <div class="date-line">配置 AI 拆解、数据备份与通知提醒</div>
         </div>
       </header>
+
+      <div class="settings-card">
+        <div class="settings-card-title">👤 个人档案（AI 据此给更贴合你的建议）</div>
+        <div class="settings-card-body">
+          <label class="pf-label" for="pfAge">年龄</label>
+          <input id="pfAge" type="text" placeholder="如：20">
+          <label class="pf-label" for="pfStage">学段 / 身份</label>
+          <input id="pfStage" type="text" placeholder="如：大二 / 高三 / 毕业转行中…">
+          <label class="pf-label" for="pfFuture">未来规划（目标岗位 / 方向 / 预期时间）</label>
+          <textarea id="pfFuture" class="pf-area" placeholder="如：一年内转行前端开发并拿到 offer；或考研到计算机相关专业…"></textarea>
+          <label class="pf-label" for="pfAbility">当前个人能力（已有基础、薄弱项；零基础就写"零基础"）</label>
+          <textarea id="pfAbility" class="pf-area" placeholder="如：零基础，只会开关机和打字；或学过一点 C 语言，没做过项目…"></textarea>
+          <button id="pfSave" class="btn primary small" type="button">保存档案</button>
+          <div class="settings-hint">档案仅保存在本机，会随「备份数据」一起导出；AI 拆解目标和写成长总结时会参考它，按"零基础起步 → 高标准达到就业水平"为你定制。</div>
+        </div>
+      </div>
 
       <div class="settings-card">
         <div class="settings-card-title">🤖 AI 大模型设置</div>

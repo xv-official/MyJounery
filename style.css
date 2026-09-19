@@ -21,6 +21,7 @@
 body.page-main { --accent: #002fa7; --accent-strong: #01236f; --accent-soft: #e9efff; }
 body.page-goal { --accent: #15161c; --accent-strong: #000000; --accent-soft: #eceef3; }
 body.page-settings { --accent: #1a1a2e; --accent-strong: #000000; --accent-soft: #eeeef5; }
+body.page-log { --accent: #002fa7; --accent-strong: #01236f; --accent-soft: #e9efff; }
 
 html, body { height: 100%; }
 body {
@@ -440,3 +441,110 @@ input:focus, select:focus { border-color: var(--accent); }
 
 .inline-add { display: flex; gap: 8px; margin-top: 4px; }
 .inline-add input { flex: 1; min-width: 120px; }
+
+/* ---------------- 行动排期（目标页每条行动下方） ---------------- */
+.sch-item { flex-wrap: wrap; }
+.sch-row {
+  flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px; padding-top: 8px; margin-top: 2px;
+  border-top: 1px dashed var(--line);
+}
+.sch-label { font-size: 12px; color: var(--muted); font-weight: 700; }
+.sch-row input[type="date"], .sch-row input[type="time"] {
+  padding: 5px 8px; font-size: 12.5px; border-radius: 7px;
+}
+.sch-row .btn.tiny { padding: 5px 10px; }
+/* 主界面"来自目标行动"的标签加一点紫色描边感，与计划子任务区分 */
+.tag.tag-action { background: #f3efff; color: #6d28d9; }
+
+/* ---------------- 个人档案表单（设置页） ---------------- */
+.pf-label { font-size: 13px; font-weight: 700; margin-top: 4px; }
+.pf-area {
+  width: 100%; min-height: 72px; resize: vertical;
+  border: 1.5px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; font: inherit; color: var(--text); outline: none;
+  background: #fff; transition: .15s; line-height: 1.6;
+}
+.pf-area:focus { border-color: var(--accent); }
+#pfSave { align-self: flex-start; margin-top: 4px; }
+
+/* ---------------- 日志页 ---------------- */
+.log-stats {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px;
+  font-size: 13.5px; color: var(--text); box-shadow: 0 2px 10px rgba(20,30,70,.05);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+}
+.log-stats b { color: var(--accent); font-size: 15px; }
+.log-stats-tip {
+  width: 100%; font-size: 12px; color: var(--muted); margin-top: 4px;
+}
+.card-like {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.log-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 14px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.log-bar strong { font-size: 14.5px; color: var(--accent); }
+#logEdit {
+  width: 100%; min-height: 260px; display: block;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px 16px;
+  font: 15px/1.75 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text); outline: none; resize: vertical;
+  box-shadow: 0 2px 10px rgba(20,30,70,.05);
+}
+#logEdit:focus { border-color: var(--accent); }
+
+.summary-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;
+}
+.summary-card { margin-bottom: 0; }
+.settings-card-title .sub { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-left: 6px; }
+.summary-card .btn.tiny { width: 100%; }
+.sum-list { display: flex; flex-direction: column; gap: 10px; }
+.sum-empty { font-size: 12.5px; color: var(--muted); padding: 6px 2px; }
+.sum-item {
+  border: 1px solid var(--line); border-radius: 10px;
+  background: #fafbfe; padding: 10px 12px;
+}
+.sum-meta {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--muted); margin-bottom: 6px;
+}
+.sum-meta b { color: var(--text); font-size: 12.5px; }
+.sum-del {
+  margin-left: auto; border: none; background: transparent;
+  cursor: pointer; color: var(--muted); font-size: 13px;
+  border-radius: 6px; padding: 2px 6px;
+}
+.sum-del:hover { background: #ffe9e9; color: #d33; }
+.sum-text { font-size: 13.5px; line-height: 1.7; max-height: 340px; overflow: auto; }
+.sum-text h1, .sum-text h2, .sum-text h3 { font-size: 14px; color: var(--accent); margin: 8px 0 4px; }
+.sum-text p { margin: 4px 0; }
+.sum-text ul, .sum-text ol { padding-left: 20px; margin: 4px 0; }
+
+/* ---------------- 移动端：日志 / 档案 / 行动排期补充 ---------------- */
+@media (max-width: 760px) {
+  /* 底部 4 个导航项：文字再收一点，保证不挤 */
+  .nav-btn { padding: 6px 2px; }
+  .nav-btn .nav-text { font-size: 10.5px; }
+
+  /* 总结三栏 → 单列 */
+  .summary-grid { grid-template-columns: 1fr; margin-top: 12px; }
+
+  /* 日志工具栏换行 */
+  .log-bar { justify-content: center; }
+  .log-bar strong { flex: 1 1 100%; text-align: center; order: -1; }
+  #logEdit { min-height: 220px; }
+
+  /* 行动排期控件占满一行 */
+  .sch-row input[type="date"] { flex: 1 1 130px; }
+  .sch-row input[type="time"] { flex: 0 1 90px; }
+  .sch-row .sch-today { flex: 1 1 auto; }
+
+  /* 主界面行动/计划标签不挤占正文 */
+  .tag { max-width: 120px; }
+}

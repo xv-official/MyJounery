@@ -56,6 +56,12 @@ function loadStore() {
     g.notes    = g.notes    || [];   // AI 生成的注意事项
     g.progress = calcGoalProgress(g);
   });
+  // 个人档案（AI 定制建议用）、每日日志、周/月/年总结
+  d.profile = d.profile || { age: '', stage: '', future: '', ability: '' };
+  ['age', 'stage', 'future', 'ability'].forEach(k => { if (typeof d.profile[k] !== 'string') d.profile[k] = ''; });
+  d.logs = d.logs && typeof d.logs === 'object' ? d.logs : {};
+  d.summaries = d.summaries || { weekly: [], monthly: [], yearly: [] };
+  ['weekly', 'monthly', 'yearly'].forEach(k => { if (!Array.isArray(d.summaries[k])) d.summaries[k] = []; });
   return d;
 }
 function saveStore() {
@@ -335,14 +341,19 @@ function renderMain() {
   /* 置顶：目标 → 阶段小目标 横向树（只展示已拆分小目标的目标） */
   renderGoalTree();
 
-  /* 主体：今日所有待办 = 手动待办 + 目标的今日计划，按时间合并排序 */
+  /* 主体：今日所有待办 = 手动待办 + 目标的今日计划/今日行动，按时间合并排序 */
   const todos = store.todos.filter(t => t.date === today);
   const plans = [];
-  store.goals.forEach(g => g.subtasks.forEach(s => { if (s.date === today) plans.push({ s, g }); }));
+  const acts = [];
+  store.goals.forEach(g => {
+    g.subtasks.forEach(s => { if (s.date === today) plans.push({ s, g }); });
+    g.actions.forEach(a => { if (a.date === today) acts.push({ a, g }); });
+  });
 
   const items = [
     ...todos.map(t => ({ kind: 'todo', time: t.time, done: t.done, node: t })),
-    ...plans.map(p => ({ kind: 'plan', time: p.s.time, done: p.s.done, node: p.s, goal: p.g }))
+    ...plans.map(p => ({ kind: 'plan', time: p.s.time, done: p.s.done, node: p.s, goal: p.g })),
+    ...acts.map(p => ({ kind: 'action', time: p.a.time, done: p.a.done, node: p.a, goal: p.g }))
   ].sort((a, b) => byTime({ time: a.time }, { time: b.time }));
 
   const doneN = items.filter(i => i.done).length;
@@ -353,7 +364,11 @@ function renderMain() {
   if (!items.length) {
     list.appendChild(el('li', 'empty', '今天还没有待办，在上方添加一条，或到「🎯 目标管理」给子任务设置今日日期 ☀️'));
   } else {
-    items.forEach(i => list.appendChild(i.kind === 'todo' ? buildTodoRow(i.node) : buildPlanRow(i.node, i.goal)));
+    items.forEach(i => {
+      if (i.kind === 'todo') list.appendChild(buildTodoRow(i.node));
+      else if (i.kind === 'plan') list.appendChild(buildPlanRow(i.node, i.goal));
+      else list.appendChild(buildActionRow(i.node, i.goal));
+    });
   }
 }
 
@@ -468,6 +483,37 @@ function buildPlanRow(sub, goal) {
   return li;
 }
 
+/* 来自目标「需要的行动」的今日条目：勾选状态与目标页行动同步 */
+function buildActionRow(act, goal) {
+  const li = el('li', 'item' + (act.done ? ' done' : ''));
+  const cb = el('input', 'check');
+  cb.type = 'checkbox';
+  cb.checked = !!act.done;
+  cb.addEventListener('change', () => { act.done = cb.checked; saveStore(); renderAll(); });
+  li.appendChild(cb);
+
+  if (act.time) li.appendChild(el('span', 'time-chip', act.time));
+
+  const tag = el('span', 'tag tag-action', escapeHtml(goal.type + '—' + goal.name + ' ·行动'));
+  tag.title = goal.type + '—' + goal.name;
+  li.appendChild(tag);
+
+  const txt = el('span', 'item-text', escapeHtml(act.text));
+  txt.title = '双击编辑';
+  txt.addEventListener('dblclick', () => makeEditable(txt, act.text, v => { act.text = v; saveStore(); renderAll(); }));
+  li.appendChild(txt);
+
+  li.appendChild(opsWrap([
+    copyBtn(() => (act.time ? act.time + ' ' : '') + act.text),
+    noteBtn({ get: () => act.note, set: v => { act.note = v; }, title: goal.type + '—' + goal.name + ' · 行动 · ' + act.text }),
+    delBtn(() => {
+      goal.actions = goal.actions.filter(a => a.id !== act.id);
+      saveStore(); renderAll(); toast('已删除');
+    }, '确定从目标「' + goal.type + '—' + goal.name + '」中删除这条行动吗？')
+  ]));
+  return li;
+}
+
 /* ==========================================================
    目标子页面渲染
    ========================================================== */
@@ -506,7 +552,10 @@ function goalCopyText(goal) {
   const lines = [`【${goal.type}—${goal.name}】 进度 ${goal.progress}%`];
   if (goal.actions.length) {
     lines.push('需要的行动：');
-    goal.actions.forEach(a => lines.push(`- [${a.done ? 'x' : ' '}] ${a.text}`));
+    goal.actions.forEach(a => {
+      const when = [a.date, a.time].filter(Boolean).join(' ');
+      lines.push(`- [${a.done ? 'x' : ' '}] ${when ? '[' + when + '] ' : ''}${a.text}`);
+    });
   }
   if (goal.subgoals.length) {
     lines.push('阶段小目标：');
@@ -536,7 +585,10 @@ function exportGoal(goal) {
   if (goal.note) lines.push(goal.note, '');
   if (goal.actions.length) {
     lines.push('## 需要的行动', '');
-    goal.actions.forEach(a => lines.push(`- [${a.done ? 'x' : ' '}] ${a.text}`));
+    goal.actions.forEach(a => {
+      const when = [a.date, a.time].filter(Boolean).join(' ');
+      lines.push(`- [${a.done ? 'x' : ' '}] ${when ? '[' + when + '] ' : ''}${a.text}`);
+    });
     lines.push('');
   }
   if (goal.subgoals.length) {
@@ -741,11 +793,11 @@ function buildActionsBlock(goal) {
     ul.appendChild(el('li', 'ai-empty', '暂无内容，点击卡片右上角「✨ AI 拆解」自动生成，也可在下方手动添加'));
   } else {
     goal.actions.forEach(a => {
-      const li = el('li', 'item' + (a.done ? ' done' : ''));
+      const li = el('li', 'item sch-item' + (a.done ? ' done' : ''));
       const cb = el('input', 'check');
       cb.type = 'checkbox';
       cb.checked = !!a.done;
-      cb.addEventListener('change', () => { a.done = cb.checked; saveStore(); renderGoals(); });
+      cb.addEventListener('change', () => { a.done = cb.checked; saveStore(); renderAll(); });
       li.appendChild(cb);
 
       const txt = el('span', 'item-text', escapeHtml(a.text));
@@ -758,6 +810,22 @@ function buildActionsBlock(goal) {
         noteBtn({ get: () => a.note, set: v => { a.note = v; }, title: '行动 · ' + a.text }),
         delBtn(() => { goal.actions = goal.actions.filter(x => x.id !== a.id); saveStore(); renderGoals(); toast('已删除'); })
       ]));
+
+      // 排期：设置日期后该行动进入主界面对应日的今日待办，设时间后到点系统通知
+      const sch = el('div', 'sch-row');
+      const d = el('input'); d.type = 'date'; d.value = a.date || ''; d.title = '计划日期（当天进入主界面待办）';
+      const t = el('input'); t.type = 'time'; t.value = a.time || ''; t.title = '计划时间（可选，到点系统通知）';
+      const onSch = () => { a.date = d.value || null; a.time = t.value || null; saveStore(); renderAll(); };
+      d.addEventListener('change', onSch);
+      t.addEventListener('change', onSch);
+      const todayBtn = el('button', 'btn ghost tiny sch-today', '📌 今天');
+      todayBtn.type = 'button';
+      todayBtn.addEventListener('click', () => { d.value = todayStr(); onSch(); });
+      const clearSch = el('button', 'btn ghost tiny', '清除排期');
+      clearSch.type = 'button';
+      clearSch.addEventListener('click', () => { d.value = ''; t.value = ''; onSch(); renderGoals(); });
+      sch.append(el('span', 'sch-label', '📅 排期'), d, t, todayBtn, clearSch);
+      li.appendChild(sch);
       ul.appendChild(li);
     });
   }
@@ -925,7 +993,7 @@ const AI_SYS_PROMPT = [
   '你是一名严格的目标规划助手。根据用户给出的目标，输出严格的 JSON 对象，包含以下字段：',
   '1) "actions"：字符串数组，3-6 条实现该目标所需的、可立即执行的行动。要求严格：每条必须以明确动作动词开头，并包含可检验的数量、频率或时间（如"每周一、三、五各跑步30分钟""每天精读1篇并写100字摘要"）；禁止"加强""提升""注意""尽量"等无法衡量、无法判断是否完成的空泛表述；',
   '2) "subgoals"：数组，每项为 {"text": string, "progress": number}，按时间先后把目标拆成 3-6 个阶段性小目标，progress 一律填 0。要求严格：每个小目标必须描述一个可判断是否达成的具体结果（如"能连续不停跑完3公里""模拟测试达到80分"），不要写成动作口号或模糊愿望；',
-  '3) "notes"：字符串数组，2-5 条注意事项。请面向零基础新手撰写：用通俗的大白话讲清楚刚起步时最容易踩的坑、常见误区和正确的起步做法，必要时举一个简单例子；避免专业术语和说教，语气鼓励、让新手有信心开始。',
+  '3) "notes"：字符串数组，2-5 条注意事项。面向零基础新手撰写：用通俗的大白话讲清楚刚起步时最容易踩的坑、常见误区和正确的起步做法，必要时举一个简单例子；避免堆砌专业术语，语气鼓励让新手敢开始，但必须同时点明"这是底线要求，不可打折扣"，不能因为新手身份而放松标准。',
   '输出格式示例（仅示意结构，不要照抄内容）：',
   '{"actions":["行动1","行动2"],"subgoals":[{"text":"第一阶段小目标","progress":0}],"notes":["注意事项1"]}',
   '要求：贴合目标类型的时间尺度（周目标按天、月目标按周、学期目标按月、年目标按季度）；行动和小目标必须具体可衡量，每条不超过 40 字；只输出 JSON 对象，不要输出解释或 Markdown 代码块。'
@@ -976,8 +1044,65 @@ function parseAIResult(raw) {
   };
 }
 
-async function aiGenerate(goal, btn) {
+/* 通用大模型对话调用（目标拆解 / 周月年总结共用） */
+async function callAI(messages, opts) {
+  opts = opts || {};
   const provider = currentProvider();
+  const key = getAIKey();
+  if (!key) {
+    const e = new Error('NO_KEY'); e.noKey = true; throw e;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  let res;
+  try {
+    const reqBody = {
+      model: provider.model,
+      messages,
+      temperature: opts.temperature != null ? opts.temperature : 0.5,
+      max_tokens: opts.maxTokens || 2000
+    };
+    if (opts.json && provider.jsonMode) reqBody.response_format = { type: 'json_object' };
+    res = await fetch(provider.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify(reqBody),
+      signal: controller.signal
+    });
+  } finally { clearTimeout(timer); }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    const providerName = provider.name.split('（')[0];
+    if (res.status === 401) throw new Error('API Key 无效，请在「⚙️ AI 设置」中检查当前厂商的 Key');
+    if (res.status === 402) throw new Error(`${providerName} 账户余额 / 额度不足`);
+    if (res.status === 429) throw new Error('请求过于频繁或额度受限，请稍后再试');
+    throw new Error(`${providerName} 接口错误 ${res.status}${detail ? '：' + detail.slice(0, 100) : ''}`);
+  }
+  const data = await res.json();
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!content) throw new Error('模型未返回内容，请重试');
+  return content;
+}
+
+/* 用户档案 → AI 上下文：零基础、循序渐进、以就业高水准为终点、高要求自律 */
+function profileContext() {
+  const p = store.profile || {};
+  const lines = ['【用户档案与成长背景】'];
+  if (p.age) lines.push('- 年龄：' + p.age);
+  if (p.stage) lines.push('- 学段/身份：' + p.stage);
+  if (p.future) lines.push('- 未来规划：' + p.future);
+  lines.push('- 当前个人能力：' + (p.ability.trim() || '基本零基础'));
+  lines.push('- 用户当前基本零基础，目标是通过循序渐进的持续学习，最终达到能够直接胜任相关岗位、顺利就业的较高专业水准；用户决心以高要求、高标准严格约束自己。');
+  lines.push('【方案尺度要求】');
+  lines.push('1. 最初 1-2 步必须零基础可立刻上手，门槛低、步骤细，不能一上来就要求预备知识；');
+  lines.push('2. 难度必须阶梯式递进，越往后标准越高，最终验收标准直接对齐真实就业岗位的能力要求，绝不降低标准、不放水、不哄劝式宽松；');
+  lines.push('3. 行动的频率、强度、量化验收条件都要从严设定，让用户被高标准约束；');
+  lines.push('4. 建议要结合用户的年龄、学段与未来规划给出（例如在校学生可利用学期周期，转行求职者要控制达到就业水平的周期）。');
+  return lines.join('\n');
+}
+
+async function aiGenerate(goal, btn) {
   const key = getAIKey();
   if (!key) { toast('请先在「⚙️ AI 设置」中填写 API Key'); openAISettings(); return; }
 
@@ -991,12 +1116,12 @@ async function aiGenerate(goal, btn) {
   btn.disabled = true;
   btn.textContent = '✨ 生成中…';
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90000);
     const now = new Date();
-    const todayStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${'日一二三四五六'[now.getDay()]}`;
-    let userContent = `今天日期：${todayStr}\n目标类型：${goal.type}\n目标名称：${goal.name}` +
+    const datePrefix = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${'日一二三四五六'[now.getDay()]}`;
+    let userContent = `今天日期：${datePrefix}\n目标类型：${goal.type}\n目标名称：${goal.name}` +
       (goal.note ? `\n目标备注：\n${goal.note}` : '');
+    // 用户档案：零基础 / 就业导向 / 高标准
+    userContent += '\n\n' + profileContext();
     // 追加模式：把已有内容告知模型，避免生成重复或高度雷同的条目
     if (!overwrite) {
       userContent += '\n\n以下为已有内容，请勿重复或高度雷同，只需补充新的条目：';
@@ -1004,35 +1129,11 @@ async function aiGenerate(goal, btn) {
       if (goal.subgoals.length) userContent += '\n已有小目标：' + goal.subgoals.map(s => s.text).join('；');
       if (goal.notes.length) userContent += '\n已有注意事项：' + goal.notes.map(n => n.text).join('；');
     }
-    const reqBody = {
-      model: provider.model,
-      messages: [
-        { role: 'system', content: AI_SYS_PROMPT },
-        { role: 'user', content: userContent }
-      ],
-      temperature: 0.5,
-      max_tokens: 2000
-    };
-    if (provider.jsonMode) reqBody.response_format = { type: 'json_object' };
-    const res = await fetch(provider.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify(reqBody),
-      signal: controller.signal
-    });
-    clearTimeout(timer);
+    const content = await callAI([
+      { role: 'system', content: AI_SYS_PROMPT },
+      { role: 'user', content: userContent }
+    ], { json: true, temperature: 0.5, maxTokens: 2000 });
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      const providerName = provider.name.split('（')[0];
-      if (res.status === 401) throw new Error('API Key 无效，请在「⚙️ AI 设置」中检查当前厂商的 Key');
-      if (res.status === 402) throw new Error(`${providerName} 账户余额 / 额度不足`);
-      if (res.status === 429) throw new Error('请求过于频繁或额度受限，请稍后再试');
-      throw new Error(`${providerName} 接口错误 ${res.status}${detail ? '：' + detail.slice(0, 100) : ''}`);
-    }
-
-    const data = await res.json();
-    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const r = parseAIResult(content);
     if (!r.actions.length && !r.subgoals.length && !r.notes.length) {
       throw new Error('模型未返回有效内容，请重试');
@@ -1070,13 +1171,16 @@ async function aiGenerate(goal, btn) {
    页面切换 / 表单事件
    ========================================================== */
 function switchPage(p) {
-  document.body.classList.remove('page-main', 'page-goal', 'page-settings');
+  document.body.classList.remove('page-main', 'page-goal', 'page-settings', 'page-log');
   document.body.classList.add('page-' + p);
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === p));
   $('#page-main').classList.toggle('hidden', p !== 'main');
   $('#page-goal').classList.toggle('hidden', p !== 'goal');
+  $('#page-log').classList.toggle('hidden', p !== 'log');
   $('#page-settings').classList.toggle('hidden', p !== 'settings');
-  if (p === 'main') renderMain(); else if (p === 'goal') renderGoals();
+  if (p === 'main') renderMain();
+  else if (p === 'goal') renderGoals();
+  else if (p === 'log') renderLogPage();
 }
 
 function renderAll() {
@@ -1181,6 +1285,13 @@ function init() {
     toast('已清除当前厂商的 Key');
   });
 
+  /* 个人档案 */
+  fillProfileForm();
+  $('#pfSave').addEventListener('click', () => { saveProfileForm(); toast('个人档案已保存'); });
+
+  /* 每日日志页 */
+  initLogPage();
+
   renderMain();
   renderGoals();
 
@@ -1207,6 +1318,9 @@ function checkDue() {
   });
   store.goals.forEach(g => g.subtasks.forEach(s => {
     if (s.date === today && s.time && !s.done) items.push({ id: 's' + s.id, time: s.time, text: s.text, from: g.type + '—' + g.name });
+  }));
+  store.goals.forEach(g => g.actions.forEach(a => {
+    if (a.date === today && a.time && !a.done) items.push({ id: 'a' + a.id, time: a.time, text: a.text, from: g.type + '—' + g.name });
   }));
 
   let changed = false;
@@ -1273,8 +1387,7 @@ async function requestNativeNotifyPermission() {
         importance: 5,          // IMPORTANCE_HIGH：弹出+声音+震动
         visibility: 1,          // PUBLIC
         vibration: true,
-        lights: true,
-        sound: 'default_ringtone'
+        lights: true
       });
     } catch (e) { /* 渠道已存在或创建失败，忽略 */ }
 
@@ -1330,20 +1443,24 @@ async function syncNativeNotifications() {
 
     const now = Date.now();
     const list = [];
-    const pushItem = (item, from) => {
+    const pushItem = (item, kind, from) => {
       if (item.done || !item.date || !item.time) return;
       const ts = new Date(item.date + 'T' + item.time + ':00').getTime();
       if (!Number.isFinite(ts) || ts <= now) return;
       list.push({
-        id: hashNotifId((from ? 's' : 't') + item.id),
+        id: hashNotifId(kind + item.id),
         title: '⏰ 待办提醒',
         body: ((from ? '【' + from + '】 ' : '') + item.time + ' ' + item.text).slice(0, 150),
         channelId: 'schedule-notify',
+        smallIcon: 'ic_stat_schedule',
+        // 允许在 Doze 省电模式下唤醒，保证息屏/关闭 App 后仍能到点通知
+        allowWhileIdle: true,
         schedule: { at: new Date(ts) }
       });
     };
-    store.todos.forEach(t => pushItem(t, ''));
-    store.goals.forEach(g => g.subtasks.forEach(s => pushItem(s, g.type + '—' + g.name)));
+    store.todos.forEach(t => pushItem(t, 't', ''));
+    store.goals.forEach(g => g.subtasks.forEach(s => pushItem(s, 's', g.type + '—' + g.name)));
+    store.goals.forEach(g => g.actions.forEach(a => pushItem(a, 'a', g.type + '—' + g.name)));
 
     if (list.length) await P.schedule({ notifications: list });
   } catch (e) { /* 排期失败静默，不影响主流程 */ }
@@ -1363,8 +1480,7 @@ async function initNative() {
         importance: 5,
         visibility: 1,
         vibration: true,
-        lights: true,
-        sound: 'default_ringtone'
+        lights: true
       });
     }
   } catch (e) { /* 已存在则忽略 */ }
@@ -1396,10 +1512,204 @@ async function initNative() {
       const aiModal = $('#aiModal');
       if (notePopup && !notePopup.classList.contains('hidden')) closeNote();
       else if (aiModal && !aiModal.classList.contains('hidden')) aiModal.classList.add('hidden');
-      else if (!$('#page-goal').classList.contains('hidden')) switchPage('main');
-      else App.exitApp();
+      else if (!$('#page-main').classList.contains('hidden')) App.exitApp();
+      else switchPage('main');
     });
   } catch (e) { /* 返回键不可用时忽略 */ }
+}
+
+/* ==========================================================
+   个人档案（AI 定制建议依据）
+   ========================================================== */
+function fillProfileForm() {
+  const p = store.profile || {};
+  $('#pfAge').value = p.age || '';
+  $('#pfStage').value = p.stage || '';
+  $('#pfFuture').value = p.future || '';
+  $('#pfAbility').value = p.ability || '';
+}
+function saveProfileForm() {
+  store.profile = {
+    age: $('#pfAge').value.trim(),
+    stage: $('#pfStage').value.trim(),
+    future: $('#pfFuture').value.trim(),
+    ability: $('#pfAbility').value.trim()
+  };
+  saveStore();
+}
+
+/* ==========================================================
+   每日日志 + 周 / 月 / 年三级成长总结（到此为止）
+   周 = 最近 7 天日志；月 = 最近 4 篇周总结；年 = 最近 12 篇月总结
+   ========================================================== */
+let logCursor = todayStr();
+let logSaveTimer = null;
+
+function dateAdd(base, n) {
+  const d = new Date(base + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return fmtDate(d);
+}
+function dateLabelCN(s) {
+  const d = new Date(s + 'T00:00:00');
+  return `${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]}`;
+}
+
+function initLogPage() {
+  $('#logPrev').addEventListener('click', () => { saveLogNow(); logCursor = dateAdd(logCursor, -1); renderLogPage(); });
+  $('#logNext').addEventListener('click', () => { saveLogNow(); logCursor = dateAdd(logCursor, 1); renderLogPage(); });
+  $('#logToday').addEventListener('click', () => { saveLogNow(); logCursor = todayStr(); renderLogPage(); });
+  $('#logEdit').addEventListener('input', () => {
+    clearTimeout(logSaveTimer);
+    logSaveTimer = setTimeout(saveLogNow, 400);
+  });
+  $('#genWeekly').addEventListener('click', () => genSummary('weekly'));
+  $('#genMonthly').addEventListener('click', () => genSummary('monthly'));
+  $('#genYearly').addEventListener('click', () => genSummary('yearly'));
+}
+
+function saveLogNow() {
+  const v = $('#logEdit').value;
+  if (v.trim()) store.logs[logCursor] = v;
+  else delete store.logs[logCursor];
+  saveStore();
+}
+
+function renderLogPage() {
+  $('#logEdit').value = store.logs[logCursor] || '';
+  $('#logDateLabel').textContent = (logCursor === todayStr() ? '今天 · ' : '') + dateLabelCN(logCursor) + ' ' + logCursor;
+
+  const logDays = Object.keys(store.logs).filter(k => store.logs[k] && store.logs[k].trim()).length;
+  const dates = Object.keys(store.logs).sort();
+  const range = dates.length ? `（${dates[0].slice(5)} 起）` : '';
+  $('#logStats').innerHTML =
+    `📝 已记录 <b>${logDays}</b> 天${range} · ` +
+    `📅 周总结 <b>${store.summaries.weekly.length}</b> 篇 · ` +
+    `🗓 月总结 <b>${store.summaries.monthly.length}</b> 篇 · ` +
+    `🎓 年总结 <b>${store.summaries.yearly.length}</b> 篇` +
+    `<span class="log-stats-tip">坚持记录，成长看得见</span>`;
+
+  renderSummaries('weekly', '#sumWeekly');
+  renderSummaries('monthly', '#sumMonthly');
+  renderSummaries('yearly', '#sumYearly');
+}
+
+function renderSummaries(kind, boxSel) {
+  const box = $(boxSel);
+  box.innerHTML = '';
+  const list = store.summaries[kind].slice().sort((a, b) => b.end.localeCompare(a.end));
+  if (!list.length) {
+    box.appendChild(el('div', 'sum-empty', '还没有总结，点上方按钮生成'));
+    return;
+  }
+  list.forEach(s => {
+    const item = el('div', 'sum-item');
+    const meta = el('div', 'sum-meta');
+    meta.appendChild(el('b', null, `${s.start.slice(5)} ~ ${s.end.slice(5)}`));
+    meta.appendChild(el('span', null, '生成于 ' + s.createdAt.slice(5, 16)));
+    const del = el('button', 'sum-del', '🗑');
+    del.type = 'button'; del.title = '删除这篇总结';
+    del.addEventListener('click', () => {
+      if (!confirm('确定删除这篇总结吗？不影响每日日志。')) return;
+      store.summaries[kind] = store.summaries[kind].filter(x => x.id !== s.id);
+      saveStore(); renderLogPage();
+    });
+    meta.appendChild(del);
+    const body = el('div', 'sum-text');
+    body.innerHTML = mdToHtml(s.text) || escapeHtml(s.text);
+    item.append(meta, body);
+    box.appendChild(item);
+  });
+}
+
+const SUM_SYS = {
+  weekly:
+    '你是一名严格又温暖的成长教练。用户基本零基础，正按"循序渐进 → 达到可就业的高水准"的路径成长，并决心以高标准约束自己。' +
+    '请根据用户最近连续 7 天的每日日志，输出 Markdown 格式的周总结，包含四个部分：' +
+    '\n## 一、本周行动回顾（如实概括，尽量量化完成情况）' +
+    '\n## 二、进步与亮点（具体指出能力或习惯上的变化，哪怕很小）' +
+    '\n## 三、问题与差距（直言不足，对照就业高标准，不回避、不哄劝、不放水）' +
+    '\n## 四、下周严格要求（3-5 条可检验的行动，含数量/频率/验收标准）' +
+    '\n全文 600 字以内，只输出 Markdown 正文，不要寒暄。',
+  monthly:
+    '你是一名严格又温暖的成长教练。用户基本零基础，目标是达到可就业的高水准，对自己要求严格。' +
+    '请根据用户最近 4 篇周总结（如附了日志则一并参考），输出 Markdown 格式的月总结：' +
+    '\n## 一、本月成长轨迹（四周的推进脉络）' +
+    '\n## 二、能力水平变化（对照真实就业岗位要求，明确指出当前所处阶段，如：入门前/已入门/能做简单项目/接近初级岗位要求）' +
+    '\n## 三、深层问题（反复出现、制约进步的问题，要尖锐具体）' +
+    '\n## 四、下月严格要求（3-5 条高标准、可检验的重点行动）' +
+    '\n全文 800 字以内，只输出 Markdown 正文。',
+  yearly:
+    '你是一名严格又温暖的成长教练。用户基本零基础，目标是达到可就业的高水准，对自己要求严格。' +
+    '请根据用户最近 12 篇月总结，输出 Markdown 格式的年度总结：' +
+    '\n## 一、年度成长全景（从零基础到现在的完整变化）' +
+    '\n## 二、关键转折与最大收获（具体事件/能力突破）' +
+    '\n## 三、就业准备度评估（距离目标岗位还差什么，直说差距）' +
+    '\n## 四、下一年度高标准目标（3-5 个可检验的年度目标）' +
+    '\n全文 1000 字以内，只输出 Markdown 正文。'
+};
+
+async function genSummary(kind) {
+  if (!getAIKey()) { toast('请先在「⚙️ 设置」中配置 AI 大模型 Key'); openAISettings(); return; }
+  const end = logCursor;
+  const span = kind === 'weekly' ? 6 : kind === 'monthly' ? 27 : 364;
+  const start = dateAdd(end, -span);
+  const name = { weekly: '周总结', monthly: '月总结', yearly: '年总结' }[kind];
+
+  // 组织素材
+  let material = '';
+  if (kind === 'weekly') {
+    const days = [];
+    for (let i = 0; i <= 6; i++) {
+      const ds = dateAdd(start, i);
+      if (store.logs[ds] && store.logs[ds].trim()) days.push(`### ${dateLabelCN(ds)}（${ds}）\n${store.logs[ds].trim()}`);
+    }
+    if (!days.length) { toast(`${start.slice(5)} ~ ${end.slice(5)} 这 7 天还没有日志，先写日志再总结`); return; }
+    material = `以下是用户 ${start} ~ ${end} 连续 7 天的每日日志：\n\n${days.join('\n\n')}`;
+  } else if (kind === 'monthly') {
+    const weeks = store.summaries.weekly.filter(s => s.end <= end).sort((a, b) => b.end.localeCompare(a.end)).slice(0, 4).reverse();
+    if (weeks.length) {
+      material = '以下是用户最近 ' + weeks.length + ' 篇周总结（' + weeks[0].start + ' ~ ' + weeks[weeks.length - 1].end + '）：\n\n' +
+        weeks.map(s => `### 周总结 ${s.start} ~ ${s.end}\n${s.text}`).join('\n\n');
+    } else {
+      // 没有周总结时降级用 28 天日志
+      const days = [];
+      for (let i = 0; i <= 27; i++) {
+        const ds = dateAdd(start, i);
+        if (store.logs[ds] && store.logs[ds].trim()) days.push(`### ${dateLabelCN(ds)}\n${store.logs[ds].trim()}`);
+      }
+      if (!days.length) { toast('还没有周总结，且最近 28 天没有日志，无法生成月总结'); return; }
+      material = `（暂无周总结，以下是最近 28 天的每日日志，请据此写月总结）\n\n${days.join('\n\n')}`;
+    }
+  } else {
+    const months = store.summaries.monthly.filter(s => s.end <= end).sort((a, b) => b.end.localeCompare(a.end)).slice(0, 12).reverse();
+    if (!months.length) { toast('还没有月总结，请先生成至少一篇月总结，再写年总结'); return; }
+    material = '以下是用户最近 ' + months.length + ' 篇月总结（' + months[0].start + ' ~ ' + months[months.length - 1].end + '）：\n\n' +
+      months.map(s => `### 月总结 ${s.start} ~ ${s.end}\n${s.text}`).join('\n\n');
+  }
+
+  const btn = $('#gen' + kind.charAt(0).toUpperCase() + kind.slice(1));
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '✨ 生成中…';
+  try {
+    const content = await callAI([
+      { role: 'system', content: SUM_SYS[kind] },
+      { role: 'user', content: profileContext() + `\n\n总结区间：${start} ~ ${end}\n\n${material}` }
+    ], { temperature: 0.6, maxTokens: kind === 'yearly' ? 1600 : 1300 });
+
+    const arr = store.summaries[kind];
+    const exist = arr.find(s => s.start === start && s.end === end);
+    if (exist) { exist.text = content.trim(); exist.createdAt = new Date().toISOString(); }
+    else arr.push({ id: uid(), start, end, text: content.trim(), createdAt: new Date().toISOString() });
+    saveStore();
+    renderLogPage();
+    toast(`✅ ${name}（${start.slice(5)} ~ ${end.slice(5)}）已生成`);
+  } catch (e) {
+    if (e.noKey) openAISettings();
+    else toast(name + '生成失败：' + e.message, 4000);
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
 }
 
 /* ==========================================================
